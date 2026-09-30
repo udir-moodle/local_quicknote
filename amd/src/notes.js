@@ -36,8 +36,8 @@ define([
         add: '[data-action="add"]',
         search: '[data-action="search"]',
         searchwrapper: '.local-quicknote__search',
-        clearsearch: '[data-action="clear-search"]',
         searchicon: '.local-quicknote__search-icon',
+        clearsearch: '[data-action="clear-search"]',
         screenshots: '[data-region="screenshots"]',
         deletescreenshot: '[data-action="delete-screenshot"]',
         deletebutton: '[data-action="delete-note"]',
@@ -1256,13 +1256,6 @@ define([
                 }
             }
 
-            if (!state.notes.length) {
-                renderEmptyState();
-                return;
-            }
-
-            renderNotes();
-
             if (searchIcon) {
                 if (term) {
                     searchIcon.style.display = 'none';
@@ -1270,6 +1263,13 @@ define([
                     searchIcon.style.display = '';
                 }
             }
+
+            if (!state.notes.length) {
+                renderEmptyState();
+                return;
+            }
+
+            renderNotes();
 
             if (!term) {
                 var emptyState = getList().querySelector(SELECTORS.emptystate);

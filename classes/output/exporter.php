@@ -58,13 +58,17 @@ class exporter {
                 $html = '';
 
                 if ($currentcourseid !== $record->courseid) {
-                    $coursefullname = format_string(
-                        $record->coursefullname,
-                        true,
-                        [
-                            'context' => \context_course::instance($record->courseid),
-                        ]
-                    );
+                    if ($record->courseid == SITEID) {
+                        $coursefullname = get_string('general_notes', 'local_quicknote');
+                    } else {
+                        $coursefullname = format_string(
+                            $record->coursefullname,
+                            true,
+                            [
+                                'context' => \context_course::instance($record->courseid),
+                            ]
+                        );
+                    }
 
                     $html .= '<h3 style="color: #0056b3; margin-top: 25px; border-bottom: 1px solid #eee;">'
                         . $coursefullname
@@ -81,18 +85,20 @@ class exporter {
                 if (!empty($record->quote)) {
                     $quote = format_text($record->quote, FORMAT_PLAIN);
                     $html .= '<blockquote style="margin-bottom: 4px; color: #555;"><i>' . $quote . '</i>';
-                    if (!empty($record->quoteurl)) {
+                    $cleanquoteurl = \local_quicknote\util::clean_url($record->quoteurl);
+                    if ($cleanquoteurl !== null) {
                         $html .= '<br><small><a href="'
-                            . s(clean_param($record->quoteurl, PARAM_URL))
+                            . s($cleanquoteurl)
                             . '">'
                             . get_string('note:viewintext', 'local_quicknote')
                             . '</a></small>';
                     }
                     $html .= '</blockquote><br>';
                 } else {
-                    if (!empty($record->url)) {
+                    $cleanurl = \local_quicknote\util::clean_url($record->url);
+                    if ($cleanurl !== null) {
                         $html .= '<p style="margin-bottom: 4px;"><small><a href="'
-                            . s(clean_param($record->url, PARAM_URL))
+                            . s($cleanurl)
                             . '" style="color: #6c757d; text-decoration: none;">'
                             . get_string('note:viewintext', 'local_quicknote')
                             . '</a></small></p>';
@@ -131,13 +137,17 @@ class exporter {
                 }
 
                 if ($currentcourseid !== $record->courseid) {
-                    $coursefullname = format_string(
-                        $record->coursefullname,
-                        true,
-                        [
-                            'context' => \context_course::instance($record->courseid),
-                        ]
-                    );
+                    if ($record->courseid == SITEID) {
+                        $coursefullname = get_string('general_notes', 'local_quicknote');
+                    } else {
+                        $coursefullname = format_string(
+                            $record->coursefullname,
+                            true,
+                            [
+                                'context' => \context_course::instance($record->courseid),
+                            ]
+                        );
+                    }
 
                     $md .= "## " . $coursefullname . "\n\n";
                     $currentcourseid = $record->courseid;
@@ -151,15 +161,17 @@ class exporter {
                 if (!empty($record->quote)) {
                     $quote = html_entity_decode(format_text($record->quote, FORMAT_PLAIN), ENT_QUOTES, 'UTF-8');
                     $md .= "> " . str_replace("\n", "\n> ", $quote) . "\n";
-                    if (!empty($record->quoteurl)) {
+                    $cleanquoteurl = \local_quicknote\util::clean_url($record->quoteurl);
+                    if ($cleanquoteurl !== null) {
                         $md .= "> [_" . get_string('note:viewintext', 'local_quicknote') . "_](" .
-                            s(clean_param($record->quoteurl, PARAM_URL)) . ")\n";
+                            s($cleanquoteurl) . ")\n";
                     }
                     $md .= "\n";
                 } else {
-                    if (!empty($record->url)) {
+                    $cleanurl = \local_quicknote\util::clean_url($record->url);
+                    if ($cleanurl !== null) {
                         $md .= "[_" . get_string('note:viewintext', 'local_quicknote') . "_](" .
-                            s(clean_param($record->url, PARAM_URL)) . ")\n\n";
+                            s($cleanurl) . ")\n\n";
                     } else {
                         $md .= "\n";
                     }

@@ -32,6 +32,7 @@ $context = context_system::instance();
 $coursefilter = optional_param('coursefilter', 0, PARAM_INT);
 $searchterm = optional_param('searchterm', '', PARAM_TEXT);
 $export = optional_param('export', '', PARAM_ALPHA);
+$noteids = optional_param_array('noteids', [], PARAM_INT);
 $page = optional_param('page', 0, PARAM_INT);
 $perpage = get_config('local_quicknote', 'perpage');
 if ($perpage === false) {
@@ -65,9 +66,15 @@ $usercourses = $DB->get_records_sql($sqlcourses, ['userid' => $USER->id]);
 $courses = [];
 if ($usercourses) {
     foreach ($usercourses as $c) {
+        if ($c->id == SITEID) {
+            $coursename = get_string('general_notes', 'local_quicknote');
+        } else {
+            $coursename = format_string($c->fullname, true, ['context' => context_course::instance($c->id)]);
+        }
+
         $courses[] = [
             'id' => $c->id,
-            'fullname' => format_string($c->fullname, true, ['context' => context_course::instance($c->id)]),
+            'fullname' => $coursename,
             'selected' => ($c->id == $coursefilter),
         ];
     }
@@ -100,6 +107,12 @@ if ($searchterm !== '') {
 
     $params['searchcontent'] = '%' . $DB->sql_like_escape($searchterm) . '%';
     $params['searchquote'] = '%' . $DB->sql_like_escape($searchterm) . '%';
+}
+
+if (!empty($noteids)) {
+    [$insql, $inparams] = $DB->get_in_or_equal($noteids, SQL_PARAMS_NAMED, 'nid');
+    $sqlfrom .= " AND qn.id $insql";
+    $params = array_merge($params, $inparams);
 }
 
 $sqlorder = " ORDER BY qn.timemodified DESC";
@@ -145,21 +158,19 @@ foreach ($noterecords as $record) {
         continue;
     }
 
+    $coursefullname = ($record->courseid == SITEID) ?
+        get_string('general_notes', 'local_quicknote') :
+        format_string($record->coursefullname, true, ['context' => context_course::instance($record->courseid)]);
+
     // Prepare variables for the template. Mustache escapes standard tags {{ }} automatically.
     $notes[] = [
         'id' => $record->id,
-        'coursefullname' => format_string(
-            $record->coursefullname,
-            true,
-            [
-                'context' => context_course::instance($record->courseid),
-            ]
-        ),
+        'coursefullname' => $coursefullname,
         'content' => $record->content,
         'timeupdated' => userdate($record->timemodified, get_string('strftimedatetimeshort', 'langconfig')),
-        'url' => !empty(clean_param($record->url, PARAM_URL)) ? (new moodle_url($record->url))->out(false) : null,
+        'url' => \local_quicknote\util::clean_url($record->url),
         'quote' => !empty($record->quote) ? $record->quote : null,
-        'quoteurl' => !empty(clean_param($record->quoteurl, PARAM_URL)) ? (new moodle_url($record->quoteurl))->out(false) : null,
+        'quoteurl' => \local_quicknote\util::clean_url($record->quoteurl),
         'screenshots' => \local_quicknote\local\screenshot_manager::get_for_note((int) $record->id),
     ];
 }
@@ -179,7 +190,7 @@ $templatecontext = [
     'nonotesfound' => get_string('note:empty', 'local_quicknote'),
     'noresultstext' => get_string('search:noresultstext', 'local_quicknote'),
     'searchnotes' => get_string('search:placeholder', 'local_quicknote'),
-    'search' => get_string('search', 'local_quicknote'),
+    'search' => get_string('search'),
     'exportpdf' => get_string('exportpdf', 'local_quicknote'),
     'exportmd' => get_string('exportmd', 'local_quicknote'),
     'hasnotestosearch' => $hasnotestosearch,

@@ -260,7 +260,11 @@ define([
 
         locationEl.textContent = state.strings.locationlabel + ': ';
         var a = document.createElement('a');
-        a.setAttribute('href', url);
+        var safeHref = '#';
+        if (url && /^(https?:\/\/|#)/i.test(url)) {
+            safeHref = url;
+        }
+        a.setAttribute('href', safeHref);
         a.textContent = url;
         locationEl.appendChild(a);
     };
@@ -530,6 +534,13 @@ define([
         getList().innerHTML = '<p class="local-quicknote__empty">' + escapeHtml(state.strings.noresultstext) + '</p>';
     };
 
+    var renderLoadingState = function() {
+        var loadingText = state.strings.loadingtext || 'Loading...';
+        getList().innerHTML = '<div class="local-quicknote__loading text-center p-3 text-muted">' +
+            '<i class="fa fa-circle-o-notch fa-spin fa-fw me-1" aria-hidden="true"></i> ' +
+            escapeHtml(loadingText) + '</div>';
+    };
+
     var noteMatchesSearch = function(note, term) {
         if (!term) {
             return true;
@@ -623,24 +634,34 @@ define([
             } catch (e) {
                 // Ignore — selection API may not be available.
             }
+            if (state.activeSelectionWindow && state.activeSelectionWindow !== window) {
+                try {
+                    state.activeSelectionWindow.getSelection().removeAllRanges();
+                } catch (e) {
+                    // Ignore.
+                }
+            }
         }
+        state.activeSelectionWindow = null;
     };
 
-    var showHighlightButton = function(rect, text) {
+    var showHighlightButton = function(rect, text, offset, win) {
+        offset = offset || {top: 0, left: 0};
         var buttonwidth = 40;
         var buttonheight = 40;
         var spacing = 10;
-        var top = rect.top - buttonheight - spacing;
-        var left = rect.left + (rect.width / 2) - (buttonwidth / 2);
+        var top = (rect.top + offset.top) - buttonheight - spacing;
+        var left = (rect.left + offset.left) + (rect.width / 2) - (buttonwidth / 2);
         var maxleft = Math.max(spacing, window.innerWidth - buttonwidth - spacing);
 
         if (top < spacing) {
-            top = rect.bottom + spacing;
+            top = (rect.bottom + offset.top) + spacing;
         }
 
         left = Math.max(spacing, Math.min(left, maxleft));
 
         state.highlightselectiontext = text;
+        state.activeSelectionWindow = win || window;
         state.highlightbutton.style.top = top + 'px';
         state.highlightbutton.style.left = left + 'px';
         state.highlightbutton.removeAttribute('hidden');
@@ -713,6 +734,10 @@ define([
         }
 
         if (isopen) {
+            if (!state.loaded && !state.loading) {
+                loadNotes();
+            }
+
             autogrowAllTextareas();
 
             var closeBtn = panel ? panel.querySelector(SELECTORS.close) : null;
@@ -798,16 +823,57 @@ define([
     };
 
     var loadNotes = function() {
+        if (state.loaded || state.loading) {
+            return;
+        }
+
+        state.loading = true;
+        renderLoadingState();
+
         var request = Repository.getNotes(state.courseid);
 
         request.then(function(response) {
-            state.notes = response.map(function(note) {
+            state.loaded = true;
+            state.loading = false;
+
+            // Preserve any draft notes created locally before fetch completes.
+            var draftNotes = state.notes.filter(function(item) {
+                return !item.id;
+            });
+
+            var fetchedNotes = response.map(function(note) {
                 return normaliseNote(note);
             });
 
+            state.notes = draftNotes.concat(fetchedNotes);
+
+            // Record focus before tearing down the DOM.
+            var activeElement = document.activeElement;
+            var activeNoteKey = null;
+            if (activeElement && activeElement.classList.contains('local-quicknote__textarea')) {
+                activeNoteKey = activeElement.getAttribute('data-note-key');
+            }
+
             renderNotes();
+
+            // Restore focus.
+            if (activeNoteKey) {
+                var newNoteEl = getNoteElementByKey(activeNoteKey);
+                if (newNoteEl) {
+                    var newTextarea = newNoteEl.querySelector(SELECTORS.textarea);
+                    if (newTextarea) {
+                        var val = newTextarea.value;
+                        newTextarea.focus();
+                        newTextarea.value = '';
+                        newTextarea.value = val;
+                    }
+                }
+            }
+
             return response;
         }).catch(function(error) {
+            state.loading = false;
+            renderEmptyState();
             Notification.exception(error);
         });
     };
@@ -850,6 +916,10 @@ define([
     };
 
     var createHighlightNote = function(text) {
+        if (!state.loaded && !state.loading) {
+            loadNotes();
+        }
+
         var note = createDraftNote();
         var quoteurl = window.location.href + '#:~:text=' + encodeURIComponent(text);
 
@@ -916,6 +986,10 @@ define([
         };
 
         var handleAddClick = function() {
+            if (!state.loaded && !state.loading) {
+                loadNotes();
+            }
+
             var note = createDraftNote();
             prependNote(note);
 
@@ -1298,6 +1372,87 @@ define([
         });
     };
 
+    var watchSameOriginIframes = function() {
+        var processIframe = function(iframe) {
+            if (iframe.dataset.quicknoteBound) {
+                return;
+            }
+            iframe.dataset.quicknoteBound = 'true';
+
+            var attachListener = function() {
+                try {
+                    var innerDoc = iframe.contentDocument;
+                    var innerWin = iframe.contentWindow;
+
+                    if (!innerDoc || !innerWin) {
+                        return;
+                    }
+                    if (innerDoc._quicknoteBound) {
+                        return;
+                    }
+                    innerDoc._quicknoteBound = true;
+
+                    innerDoc.addEventListener('mouseup', function(e) {
+                        if (e.target.closest('.' + HIGHLIGHT_BUTTON_CLASS)) {
+                            return;
+                        }
+                        window.setTimeout(function() {
+                            var result = getValidSelection(innerWin);
+                            if (result && result.rect && result.rect.width) {
+                                var iframeRect = iframe.getBoundingClientRect();
+                                showHighlightButton(result.rect, result.text, {
+                                    top: iframeRect.top,
+                                    left: iframeRect.left
+                                }, innerWin);
+                            } else {
+                                hideHighlightButton(false);
+                            }
+                        }, 10);
+                    }, true);
+
+                } catch (e) {
+                    // Cross-origin boundaries may prevent attachment.
+                }
+            };
+
+            // Attempt to bind immediately if already loaded.
+            if (iframe.contentDocument && iframe.contentDocument.readyState === 'complete') {
+                attachListener();
+            }
+
+            iframe.addEventListener('load', attachListener);
+
+            // Repeated polling for a short duration to ensure attachment after doc.open() / doc.write().
+            var attempts = 10;
+            var interval = window.setInterval(function() {
+                attachListener();
+                attempts--;
+                if (attempts <= 0) {
+                    window.clearInterval(interval);
+                }
+            }, 500);
+        };
+
+        var findAndProcessIframes = function() {
+            var iframes = document.querySelectorAll('.h5p-iframe, iframe[id^="h5p-iframe-"]');
+            iframes.forEach(processIframe);
+        };
+
+        // Initial scan.
+        findAndProcessIframes();
+
+        // Watch for dynamically added iframes.
+        var observer = new MutationObserver(function(mutations) {
+            mutations.forEach(function(mutation) {
+                if (mutation.addedNodes.length) {
+                    findAndProcessIframes();
+                }
+            });
+        });
+
+        observer.observe(document.body, {childList: true, subtree: true});
+    };
+
     return {
         init: function(config) {
             var rootEl = getRoot();
@@ -1313,6 +1468,8 @@ define([
                     Boolean(config.enable_screenshots) : false,
                 maxFiles: config.hasOwnProperty('max_files_per_note') ? Number(config.max_files_per_note) : 0,
                 maxBytes: config.hasOwnProperty('max_bytes') ? Number(config.max_bytes) : 0,
+                loaded: false,
+                loading: false,
                 notes: [],
                 timers: {},
                 strings: {
@@ -1325,7 +1482,8 @@ define([
                     locationlabel: rootEl.getAttribute('data-locationlabel'),
                     highlightlabel: rootEl.getAttribute('data-highlightlabel'),
                     deleteconfirm: rootEl.getAttribute('data-deleteconfirm'),
-                    noresultstext: rootEl.getAttribute('data-noresultstext')
+                    noresultstext: rootEl.getAttribute('data-noresultstext'),
+                    loadingtext: rootEl.getAttribute('data-loadingtext')
                 }
             };
 
@@ -1333,7 +1491,7 @@ define([
             state.highlightselectiontext = '';
 
             bindEvents();
-            loadNotes();
+            watchSameOriginIframes();
         },
 
         initIframe: function(config) {

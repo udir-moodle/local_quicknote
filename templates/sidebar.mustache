@@ -46,6 +46,8 @@
     data-highlightlabel="{{highlightlabel}}"
     data-deleteconfirm="{{deleteconfirm}}"
     data-noresultstext="{{noresultstext}}"
+    data-deleteimagelabel="{{#str}} screenshot:delete, local_quicknote {{/str}}"
+    data-uploadingtext="{{#str}} screenshot:uploading, local_quicknote {{/str}}"
 >
     <button
         type="button"
@@ -108,6 +110,7 @@
             >
                 <i class="fa-solid fa-xmark" aria-hidden="true"></i>
             </button>
+            <i class="fa fa-search local-quicknote__search-icon" aria-hidden="true"></i>
         </div>
 
         <div class="local-quicknote__notes" data-region="notes-list">
@@ -155,6 +158,10 @@
                     </button>
                 </div>
 
+                <div class="local-quicknote__screenshots" data-region="screenshots"></div>
+                {{#enablescreenshots}}
+                <p class="local-quicknote__paste-hint">{{#str}} screenshot:pastehint, local_quicknote {{/str}}</p>
+                {{/enablescreenshots}}
             </article>
         </template>
 

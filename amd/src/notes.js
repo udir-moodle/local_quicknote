@@ -36,8 +36,8 @@ define([
         add: '[data-action="add"]',
         search: '[data-action="search"]',
         searchwrapper: '.local-quicknote__search',
-        searchicon: '.local-quicknote__search-icon',
         clearsearch: '[data-action="clear-search"]',
+        searchicon: '.local-quicknote__search-icon',
         screenshots: '[data-region="screenshots"]',
         deletescreenshot: '[data-action="delete-screenshot"]',
         deletebutton: '[data-action="delete-note"]',
@@ -977,6 +977,19 @@ define([
             }
         });
 
+        document.addEventListener('keydown', function(e) {
+            if (e.target.closest('input, textarea, select, [contenteditable="true"]') || e.target.isContentEditable) {
+                return;
+            }
+            if (e.altKey && !e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 'q') {
+                e.preventDefault();
+                if (!state.root.classList.contains('is-open')) {
+                    setOpenState(true);
+                }
+                handleAddClick();
+            }
+        });
+
         var handleToggleClick = function() {
             setOpenState(!state.root.classList.contains('is-open'));
         };
@@ -997,6 +1010,10 @@ define([
             var textarea = noteEl ? noteEl.querySelector(SELECTORS.textarea) : null;
             if (textarea) {
                 textarea.focus();
+            }
+            var list = state.root.querySelector(SELECTORS.list);
+            if (list) {
+                list.scrollTop = 0;
             }
         };
 
@@ -1149,12 +1166,26 @@ define([
                 var screenshotNoteEl = deleteScreenshotBtn.closest(SELECTORS.note);
                 var screenshotNote = screenshotNoteEl ?
                     getNoteByKey(screenshotNoteEl.getAttribute('data-note-key')) : null;
-                if (screenshotNote && screenshotNote.id) {
-                    deleteScreenshot(
-                        screenshotNote,
-                        Number(deleteScreenshotBtn.getAttribute('data-fileid')),
-                        screenshotNoteEl
-                    );
+                var fileId = Number(deleteScreenshotBtn.getAttribute('data-fileid'));
+
+                if (screenshotNote && screenshotNote.id && fileId) {
+                    Str.get_strings([
+                        {key: 'confirm', component: 'core'},
+                        {key: 'screenshot:delete', component: 'local_quicknote'},
+                        {key: 'delete', component: 'core'},
+                        {key: 'cancel', component: 'core'}
+                    ]).then(function(strings) {
+                        Notification.confirm(
+                            strings[0],
+                            strings[1],
+                            strings[2],
+                            strings[3],
+                            function() {
+                                deleteScreenshot(screenshotNote, fileId, screenshotNoteEl);
+                            }
+                        );
+                        return true;
+                    }).catch(Notification.exception);
                 }
                 return;
             }
@@ -1167,6 +1198,15 @@ define([
             var closeBtn = e.target.closest(SELECTORS.close);
             if (closeBtn) {
                 handleCloseClick();
+                return;
+            }
+
+            var addAndOpenBtn = e.target.closest('[data-action="add-and-open"]');
+            if (addAndOpenBtn) {
+                if (!state.root.classList.contains('is-open')) {
+                    handleToggleClick();
+                }
+                handleAddClick();
                 return;
             }
 
@@ -1330,6 +1370,13 @@ define([
                 }
             }
 
+            if (!state.notes.length) {
+                renderEmptyState();
+                return;
+            }
+
+            renderNotes();
+
             if (searchIcon) {
                 if (term) {
                     searchIcon.style.display = 'none';
@@ -1337,13 +1384,6 @@ define([
                     searchIcon.style.display = '';
                 }
             }
-
-            if (!state.notes.length) {
-                renderEmptyState();
-                return;
-            }
-
-            renderNotes();
 
             if (!term) {
                 var emptyState = getList().querySelector(SELECTORS.emptystate);

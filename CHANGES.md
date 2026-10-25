@@ -1,6 +1,6 @@
 # Moodle plugin: local_quicknote
 
-## v45-0.14.0 (2026-10-23)
+## v0.14.0 (2026-10-23)
 
 - **Accessibility & RTL Language Support (Fixes #43)**:
   - Fixed keyboard navigation accessibility hazard: closed sidebar panel now uses `visibility: hidden` (with delayed transition), ensuring that hidden drawer elements (such as note deletion buttons) cannot receive keyboard focus via `Tab` or trigger unexpected actions when the drawer is closed.
@@ -9,12 +9,12 @@
   - Implemented collapsible long quotations ("More" / "Less" toggle) in both the sidebar drawer and Notes Center, preventing oversized quotes from dominating the screen.
   - Standardized the "View in text" link presentation in Notes Center across notes with and without quotations, using consistent icon indicator (`fa-external-link`), `rem`-based typography, and removing Bootstrap's blockquote em-dash prefix.
   - Added source page title (`pagetitle`) persistence and normalization: displays the page title as a subtitle in Notes Center cards, uses it as the clickable location label in the sidebar (with fallback to URL for legacy notes), and includes it in search filters.
-- **URL Normalization & Domain Migration Resilience (`pageshash`)**:
+- **URL Normalization & Domain Migration Resilience (`pagehash`)**:
   - Canonicalized saved note and quote URLs by stripping volatile session parameters (`sesskey`, `_qf__*`, drawer flags) and sorting query parameters deterministically.
   - Added `pagehash` (`SHA-256` of the installation-independent canonical path + query) with a composite database index (`userid, pagehash`) and automatic upgrade backfilling for existing notes.
   - Automatically rebased stored note and quote URLs to the current `$CFG->wwwroot` on save and render/export so links remain unbroken after Moodle domain, protocol, or subdirectory migrations.
 
-## v45-0.13.0 (2026-10-13)
+## v0.13.0 (2026-10-13)
 
 - **Bulk Actions & Selection**:
   - Implemented `Shift + Click` range selection in the Notes Center, allowing users to rapidly select or deselect multiple contiguous note cards.
@@ -26,7 +26,7 @@
   - Added a global keyboard shortcut (`Alt + Q` or `Alt + Shift + Q`) to instantly open the sidebar and focus on a new note, explicitly ignoring inputs to avoid conflicts.
   - Added tooltip hints and accessibility attributes (`aria-keyshortcuts`) communicating the shortcut to users.
 
-## v45-0.12.0 (2026-10-03)
+## v0.12.0 (2026-09-28)
 
 - **Bulk Actions in Notes Center**:
   - Added multi-select capabilities with individual card checkboxes and "Select all" / "Deselect all" controls.
@@ -41,7 +41,7 @@
   - Added "General notes" option in Notes Center filters and export routines.
 - **UI/UX & Theming**:
   - Dynamically adjusted the floating toggle button's vertical position when Moodle's sticky footer is active (`.hasstickyfooter`), preventing it from overlapping bottom action bars.
-  - Migrated core language strings to reduce plugin footprint (`bulkactions`, `selectall`, `search`).
+  - Modernized sidebar and note component styles with standard Bootstrap 5 CSS variables (`--bs-body-bg`, `--bs-border-color`, `--bs-tertiary-bg`, etc.) for consistent theming and dark mode support.
 - **Performance & Lazy Loading**:
   - Implemented lazy loading for the sidebar: user notes are now fetched via AJAX only when the drawer is first opened, speeding up initial page loads.
   - Added loading indicator state with draft preservation and auto-focus restoration upon fetch completion.
@@ -53,8 +53,13 @@
   - Introduced `util::clean_url()` to strictly sanitize and validate note URLs, blocking dangerous URI schemes (e.g. `javascript:`, `data:`).
   - Improved handling for complex URLs with multiple hash fragments (common in interactive modules and SPAs).
   - Applied URL sanitization across note saving (`save_note`), PDF/Markdown exports (`exporter`), and Notes Center rendering.
+- **Moodle 5.x Modernization & Code Cleanup**:
+  - Removed legacy callback `local_quicknote_before_standard_top_of_body_html` in favor of the Moodle 4.4+ / 5.x Hooks API (`before_standard_top_of_body_html_generation`).
+  - Removed deprecated `\core\event\course_updated` observer and simplified form hooks to use direct `$hook->mform` property access.
+  - Replaced legacy Bootstrap 4 accessibility class `sr-only` with Bootstrap 5 `visually-hidden`.
+  - Updated theme styles to use native `--bs-primary` CSS variables, removing obsolete Bootstrap 4 fallbacks.
 
-## m45-0.11.0 (2026-09-12)
+## 0.11.0 (2026-09-12)
 *Screenshot functionality co-authored and ported with contributions by Andreas Giesen (@108design).*
 
 - **Screenshots & Lightbox Gallery**:
@@ -65,8 +70,11 @@
   - Added administrative settings to enable/disable screenshot attachments globally, configure maximum allowed upload size (`max_bytes`), and limit maximum screenshots per note (`max_files_per_note`).
   - Added the `local/quicknote:uploadscreenshot` capability (`CONTEXT_COURSE`) for granular role-based access control.
 - **UI/UX & Accessibility**:
+  - Replaced custom sidebar close button with Bootstrap's native `btn-close` and added padding (`p-2`) to expand the touch and click target area for improved WCAG accessibility.
   - Added a search icon inside the sidebar search input that dynamically toggles with the clear search button when typing.
-  - Simplified search button markup in the Notes Center (`view.mustache`), converting it to a concise icon-only button.
+  - Simplified search button markup in the Notes Center (`view.mustache`), removing the legacy `input-group-append` wrapper and converting it to a concise icon-only button.
+- **Style & Modernization**:
+  - Replaced deprecated Bootstrap 4 utility classes in the Notes Center template (`view.mustache`) with standard Bootstrap 5 classes (`form-select`, `fw-bold`, `text-end`, `me-*`, `border-start`, `ps-*`, `fst-italic`).
 
 ## 0.10.0 (2026-08-30)
 *Major contributions and features in this release were ported from a downstream fork by Andreas Giesen (@108design).*

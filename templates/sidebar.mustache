@@ -93,18 +93,17 @@
             <h3 class="local-quicknote__title">{{title}}</h3>
             <button
                 type="button"
-                class="local-quicknote__close"
+                class="btn-close p-2"
                 data-action="close"
                 title="{{closelabel}}"
                 aria-label="{{closelabel}}"
             >
-                {{#pix}} e/cancel, core {{/pix}}
             </button>
         </div>
 
 
         <div class="local-quicknote__search position-relative">
-            <label class="sr-only" for="local-quicknote-search">{{#str}} search:placeholder, local_quicknote {{/str}}</label>
+            <label class="visually-hidden" for="local-quicknote-search">{{#str}} search:placeholder, local_quicknote {{/str}}</label>
             <input
                 id="local-quicknote-search"
                 type="text"

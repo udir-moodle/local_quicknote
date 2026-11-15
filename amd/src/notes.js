@@ -36,8 +36,8 @@ define([
         add: '[data-action="add"]',
         search: '[data-action="search"]',
         searchwrapper: '.local-quicknote__search',
-        searchicon: '.local-quicknote__search-icon',
         clearsearch: '[data-action="clear-search"]',
+        searchicon: '.local-quicknote__search-icon',
         screenshots: '[data-region="screenshots"]',
         deletescreenshot: '[data-action="delete-screenshot"]',
         deletebutton: '[data-action="delete-note"]',
@@ -299,7 +299,7 @@ define([
         closeBtn.style.top = '5px';
         closeBtn.style.fontSize = '1.2rem';
         closeBtn.style.lineHeight = '1';
-        closeBtn.setAttribute('aria-label', 'Close');
+        closeBtn.setAttribute('aria-label', state.strings.closelabel || 'Close');
         closeBtn.innerHTML = '<span aria-hidden="true">&times;</span>';
         closeBtn.addEventListener('click', function() {
             alertNode.remove();
@@ -1527,6 +1527,13 @@ define([
                 }
             }
 
+            if (!state.notes.length) {
+                renderEmptyState();
+                return;
+            }
+
+            renderNotes();
+
             if (searchIcon) {
                 if (term) {
                     searchIcon.style.display = 'none';
@@ -1534,13 +1541,6 @@ define([
                     searchIcon.style.display = '';
                 }
             }
-
-            if (!state.notes.length) {
-                renderEmptyState();
-                return;
-            }
-
-            renderNotes();
 
             if (!term) {
                 var emptyState = getList().querySelector(SELECTORS.emptystate);
@@ -1683,6 +1683,9 @@ define([
                     highlightlabel: rootEl.getAttribute('data-highlightlabel'),
                     deleteconfirm: rootEl.getAttribute('data-deleteconfirm'),
                     noresultstext: rootEl.getAttribute('data-noresultstext'),
+                    closelabel: rootEl.getAttribute('data-closelabel'),
+                    deleteimagelabel: rootEl.getAttribute('data-deleteimagelabel'),
+                    uploadingtext: rootEl.getAttribute('data-uploadingtext'),
                     loadingtext: rootEl.getAttribute('data-loadingtext')
                 }
             };

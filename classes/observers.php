@@ -31,6 +31,37 @@ namespace local_quicknote;
  */
 class observers {
     /**
+     * Save QuickNote configuration when the course is updated.
+     *
+     * @param \core\event\course_updated $event The event triggered.
+     */
+    public static function course_updated(\core\event\course_updated $event) {
+        // Skip if Moodle 4.4+ hook already handles persistence.
+        if (class_exists(\core_course\hook\after_form_submission::class)) {
+            return;
+        }
+
+        $courseid = $event->objectid;
+
+        $enabled = optional_param('local_quicknote_enabled', null, PARAM_INT);
+
+        if ($enabled !== null) {
+            global $DB;
+            $record = $DB->get_record('local_quicknote_course', ['courseid' => $courseid]);
+            if ($record) {
+                $record->enabled = $enabled;
+                $DB->update_record('local_quicknote_course', $record);
+            } else {
+                $record = new \stdClass();
+                $record->courseid = $courseid;
+                $record->enabled = $enabled;
+                $record->module_settings = '';
+                $DB->insert_record('local_quicknote_course', $record);
+            }
+        }
+    }
+
+    /**
      * Delete the per-course synthetic config when a course is deleted.
      *
      * @param \core\event\course_deleted $event The event triggered.
@@ -59,6 +90,15 @@ class observers {
      */
     public static function user_enrolment_deleted(\core\event\user_enrolment_deleted $event) {
         global $DB;
+
+        $ue = $event->other['userenrolment'] ?? [];
+        $lastenrol = $ue['lastenrol'] ?? null;
+        if ($lastenrol === false) {
+            return;
+        }
+        if ($lastenrol === null && is_enrolled(\context_course::instance($event->courseid), $event->relateduserid)) {
+            return;
+        }
 
         $userid = $event->relateduserid;
         $courseid = $event->courseid;

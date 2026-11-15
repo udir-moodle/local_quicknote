@@ -1,12 +1,9 @@
-# QuickNote #
+# Quick Note #
 
 Designed for the native Boost experience in Moodle 4.4 and 4.5+, QuickNote helps students capture important excerpts while reading course materials, connect those excerpts to personal reflections, and return to the exact place where learning happened. For teachers and administrators, it provides simple controls to decide when and where the tool is available.
 
 Instead of forcing learners to copy text into external apps, QuickNote keeps the study workflow inside Moodle. Students can highlight a passage, save it instantly as a quote, add their own interpretation, and revisit the original context later through browser text-fragment navigation. The result is a cleaner, more focused note-taking experience that supports active reading, revision, and deeper engagement with course content.
 
-<div align="center">
-<a href="https://ateeducacion.github.io/moodle-playground/?blueprint-url=https://gist.githubusercontent.com/Matheu46/ab4a85fb82d52fee6c1b40c21203d5c5/raw/blueprint.json" target="_blank" rel="noopener"><img src=".github/assets/playground-preview-button.svg" alt="Preview in Moodle Playground" width="200"></a>
-</div>
 <img width="1155" height="949" alt="demo-quicknote" src="https://github.com/user-attachments/assets/07d02bb9-0a81-49fe-837e-10d1b4672b72" />
 
 ## ✨ Features
@@ -20,7 +17,6 @@ Instead of forcing learners to copy text into external apps, QuickNote keeps the
 - **Notes Center (view.php):** A dedicated dashboard for students to view all their notes with Global Search, Course Filtering, sorted by last modified date, and equipped with Pagination (configurable display limits) for optimal database performance.
 - **PDF and Markdown Export:** Students can export their compiled notes and reflections directly from the Notes Center to a PDF and Markdown file.
 - **Auto-save & Core Safety**: Notes are saved automatically via Moodle AJAX services. Includes native Backup & Restore support and automatic deletion of notes when a user is unenrolled.
-- **Screenshot Attachments & Lightbox Gallery:** Paste screenshots directly from the clipboard (`Ctrl+V` / `Cmd+V`) into any note. Includes automatic client-side compression, an in-app accessible lightbox gallery with keyboard navigation, direct image downloads, and administrative upload limits.
 - **Search and Management**: Students can filter notes in real time and delete notes they no longer need.
 
 ## ✅ Prerequisites
@@ -42,12 +38,8 @@ Administrators can define the default behavior for new courses:
 1. Go to `Site administration > Plugins > Local plugins > QuickNote`.
 2. Configure the default state for the plugin:
    `Enabled` or `Disabled` for courses that have not yet been individually configured.
-3. Configure screenshot policies:
-   - **Enable screenshots**: Globally enable or disable the screenshot attachment feature (disabled by default to prevent unexpected storage usage).
-   - **Maximum file size**: Set maximum allowed upload size per screenshot (defaults to 2 MB).
-   - **Maximum screenshots per note**: Limit how many images a note can hold (defaults to 3 images).
 
-This allows institutions to decide whether QuickNote should be available broadly by default or enabled selectively, while tightly governing disk storage.
+This allows institutions to decide whether QuickNote should be available broadly by default or enabled selectively.
 
 ### Teacher course settings
 
@@ -60,11 +52,13 @@ Teachers can control QuickNote per course:
 
 ### Advanced Permissions (Capabilities)
 
-QuickNote integrates natively with Moodle's Role and Permission system through the `local/quicknote:use` capability. This provides administrators and teachers with powerful granular control over **who** can use the tool:
+QuickNote integrates natively with Moodle's Role and Permission system through the `local/quicknote:use` and `local/quicknote:uploadscreenshot` capabilities defined at the System level (`CONTEXT_SYSTEM`):
 
-- **Role-based Access:** By default, Students, Teachers, and Managers have permission to use QuickNote. You can easily remove this capability from specific roles (like Guests or custom Auditor roles) at the system or course level.
-- **Screenshot Permissions (`local/quicknote:uploadscreenshot`):** Administrators can control who is allowed to upload screenshots. If needed, this capability can be removed from student roles to prevent uploads while still allowing them to create text notes.
-- **Individual Student Restrictions:** If a specific student is misusing the tool, you don't need to disable QuickNote for the entire class. An administrator can create a custom role (e.g., "QuickNote Restricted") with the `local/quicknote:use` capability set to **Prohibit**. A teacher can then assign this role to that specific student in the course, instantly hiding the tool only for them, while the rest of the class continues using it normally.
+- **System & Dashboard Access:** All authenticated users (`user` archetype) have permission to use QuickNote on the Dashboard (`/my/`) and Front Page by default. Anonymous guest accounts (`isguestuser()`) are strictly blocked across all web services, page views, and file downloads.
+- **Course-level Access:** Within enrolled courses, Students, Teachers, and Managers have access by default. Users must be enrolled and permitted to view the course via `require_login($course)`.
+- **Screenshot Permissions (`local/quicknote:uploadscreenshot`):** Governs who can paste and attach screenshots to notes. Administrators can revoke this capability for specific roles (e.g., student roles) to prevent image storage while still allowing them to create text notes.
+- **Restricting Roles in Specific Courses (e.g., Students Only):** Because authenticated users have permission at the system level for personal Dashboard notes, if you want a course where **only students can use QuickNote** (and teachers or tutors cannot), navigate to the course's **Participants > Permissions**, locate `local/quicknote:use`, and set the excluded role (e.g., *Teacher*) to **Prohibit** (`CAP_PROHIBIT`). Because the prohibition is scoped strictly to that course context, it blocks the tool inside that course while allowing those teachers to keep using QuickNote normally on their personal Dashboard.
+- **Individual Student Restrictions:** If a specific student is misusing the tool, you do not need to disable QuickNote for the entire class. An administrator can create a custom role (e.g., "QuickNote Restricted") with `local/quicknote:use` set to **Prohibit**. This role can be assigned either globally (*Site administration > Users > Permissions > Assign system roles*) or locally within a single course to instantly revoke access for that specific user.
 
 > [!NOTE]
 > **Moodle < 4.4 Compatibility**: The course-level toggle within the course settings form is only supported on Moodle 4.4+. In Moodle versions older than 4.4, the plugin will run based on the default site-wide policy defined by the administrator, as older Moodle core versions do not support local plugin settings injection on the course edit form.
@@ -122,7 +116,6 @@ QuickNote is designed to be simple for students from the first interaction.
 6. Continue reading while notes are saved automatically in the background.
 7. Use the search field later to find notes quickly.
 8. Click `View in text` to return to the original page location and highlight the saved passage.
-9. **Attach Screenshots**: Paste images directly into a note with `Ctrl+V` / `Cmd+V`. Click any thumbnail to view it in full screen via the built-in lightbox gallery, navigate between screenshots, or download them to your device.
 
 ## 💡 Design Principles & Contributing
 

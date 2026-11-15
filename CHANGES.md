@@ -1,6 +1,43 @@
 # Moodle plugin: local_quicknote
 
-## v0.14.0 (2026-10-23)
+## v45-0.14.1 (2026-11-13)
+
+- **Security & Authorization Hardening**:
+  - Fixed authorization gap where site-level notes (`courseid == SITEID`, such as on the Dashboard or Front page) bypassed role capabilities and allowed unauthenticated guests to store and read notes/screenshots anonymously.
+  - Added strict `isguestuser()` rejection in `util::validate_note_access()`, `view.php`, and `pluginfile.php`.
+  - Added the `user => CAP_ALLOW` archetype to `local/quicknote:use` and `local/quicknote:uploadscreenshot` in `db/access.php` with `CONTEXT_SYSTEM` level, ensuring authenticated users retain dashboard note access while allowing administrators to restrict access via role permissions.
+  - Enforced `require_capability('local/quicknote:use')` and `require_capability('local/quicknote:uploadscreenshot')` checks on site-level notes in `util::validate_note_access()`, `hooks.php`, and `view.php`.
+  - Added an upgrade step to refresh plugin capabilities via `update_capabilities('local_quicknote')` on existing installations.
+- **Data Integrity in Enrolment Observer**:
+  - Fixed premature deletion of course notes and screenshots in `observers::user_enrolment_deleted()`: the observer now checks `$event->other['userenrolment']['lastenrol']` (with defensive fallback to `is_enrolled()`) before deleting records, preventing irreversible deletion of notes when a student has multiple enrolment methods in a course (e.g., manual + self or cohort sync) and only one method is removed.
+- **Backup & Restore Course Setting Preservation**:
+  - Fixed functional regression where duplicating, importing, or restoring a course that had no explicit QuickNote setting silently disabled the plugin in the restored course.
+  - Updated `backup_local_quicknote_plugin` to export `null` (restored as `$@NULL@$`) instead of an empty string `''` when no course setting is defined.
+  - Updated `restore_local_quicknote_plugin` to initialize `enabled = null` and ignore empty strings, preventing the database driver from converting `''` into `0` and preserving the three-state model (inheriting the site-level `default_enabled`).
+  - Fixed restore behavior when only module settings exist, ensuring course-level `enabled` remains `null` rather than hardcoding `enabled = 1`.
+- **Course & Module Settings Persistence in Hooks**:
+  - Fixed issue where QuickNote settings chosen during course creation were silently dropped: `hooks::course_edit_submission()` now reads `$data->id` and `$data->local_quicknote_enabled` directly from `\core_course\hook\after_form_submission::get_data()` rather than relying on raw request parameters (`optional_param('id')`, which is `0` when creating a new course).
+  - Updated `hooks::course_edit_form()` to retrieve the course ID via `$hook->formwrapper->get_course()`.
+  - Updated `local_quicknote_coursemodule_standard_elements()` and `local_quicknote_coursemodule_edit_post_actions()` to use `$formwrapper->get_coursemodule()` and handle `$data->coursemodule`, enabling settings to be persisted on newly created modules as well as existing ones.
+- **Privacy API Compliance**:
+  - Corrected language string key for `core_files` subsystem metadata in `lang/en/local_quicknote.php`: renamed `privacy:metadata:local_quicknote_notes:core_files` to `privacy:metadata:core_files` to match `provider::get_metadata()`, resolving missing-string placeholder in Moodle's Plugin Privacy Registry and data-export requests.
+- **Export Formatting & URL Encoding Hardening**:
+  - Fixed HTML artifacts in Markdown export (`exporter::export_to_md()`): raw text is now exported directly without running through `format_text(..., FORMAT_PLAIN)`, eliminating unwanted `<br />`, `&amp;`, `&lt;`, and `&nbsp;` entities in downloaded `.md` files.
+  - Fixed duplicated line breaks in PDF export (`exporter::export_to_pdf()`): removed redundant `nl2br()` on content that had already been processed by `format_text()`.
+  - Fixed export links encoding in Notes Center (`view.php` and `view.mustache`): export URLs are now constructed with `moodle_url::out(false)`, properly URL-encoding search terms with special characters (such as `&`, `#`, `+`) and preventing query string corruption.
+- **Mobile App Architecture & String Escaping**:
+  - Fixed JavaScript syntax breakage in Moodle Mobile App: replaced raw string interpolation (`str_replace` of `%%DELETE_CONFIRM%%`) with structured data in `otherdata` (`deleteconfirm`), preventing syntax errors in language packs with apostrophes (such as French, Italian, or Portuguese) and eliminating script injection risks.
+  - Registered `note:delete_confirm` in `db/mobile.php` language strings.
+- **Accessibility & Internationalization (a11y/i18n)**:
+  - Eliminated hardcoded `'Close'` label on dynamic error alert close button in `amd/src/notes.js`: the close button now consumes the localized `closelabel` from `state.strings` passed via `data-closelabel` on `#local-quicknote-root`.
+  - Mapped missing `closelabel`, `deleteimagelabel`, and `uploadingtext` attributes into `state.strings`.
+  - Recompiled AMD modules with Moodle Grunt.
+- **Upgrade Self-Containment & Codebase Cleanliness**:
+  - Isolated the historical `pagehash` backfill hashing logic in `db/upgradelib.php` (`local_quicknote_upgrade_calculate_page_hash()`) instead of calling the live class `\local_quicknote\util::calculate_page_hash()` during upgrade step `2026101801`, ensuring long-term upgrade stability and preventing regressions if runtime plugin classes change in future releases.
+  - Removed unused boilerplate scaffold function `local_quicknote_helper_function()` from `db/upgradelib.php`.
+  - Removed obsolete empty scaffold file `db/install.php`.
+
+## v45-0.14.0 (2026-10-23)
 
 - **Accessibility & RTL Language Support (Fixes #43)**:
   - Fixed keyboard navigation accessibility hazard: closed sidebar panel now uses `visibility: hidden` (with delayed transition), ensuring that hidden drawer elements (such as note deletion buttons) cannot receive keyboard focus via `Tab` or trigger unexpected actions when the drawer is closed.
@@ -9,12 +46,12 @@
   - Implemented collapsible long quotations ("More" / "Less" toggle) in both the sidebar drawer and Notes Center, preventing oversized quotes from dominating the screen.
   - Standardized the "View in text" link presentation in Notes Center across notes with and without quotations, using consistent icon indicator (`fa-external-link`), `rem`-based typography, and removing Bootstrap's blockquote em-dash prefix.
   - Added source page title (`pagetitle`) persistence and normalization: displays the page title as a subtitle in Notes Center cards, uses it as the clickable location label in the sidebar (with fallback to URL for legacy notes), and includes it in search filters.
-- **URL Normalization & Domain Migration Resilience (`pagehash`)**:
+- **URL Normalization & Domain Migration Resilience (`pageshash`)**:
   - Canonicalized saved note and quote URLs by stripping volatile session parameters (`sesskey`, `_qf__*`, drawer flags) and sorting query parameters deterministically.
   - Added `pagehash` (`SHA-256` of the installation-independent canonical path + query) with a composite database index (`userid, pagehash`) and automatic upgrade backfilling for existing notes.
   - Automatically rebased stored note and quote URLs to the current `$CFG->wwwroot` on save and render/export so links remain unbroken after Moodle domain, protocol, or subdirectory migrations.
 
-## v0.13.0 (2026-10-13)
+## v45-0.13.0 (2026-10-13)
 
 - **Bulk Actions & Selection**:
   - Implemented `Shift + Click` range selection in the Notes Center, allowing users to rapidly select or deselect multiple contiguous note cards.
@@ -26,7 +63,7 @@
   - Added a global keyboard shortcut (`Alt + Q` or `Alt + Shift + Q`) to instantly open the sidebar and focus on a new note, explicitly ignoring inputs to avoid conflicts.
   - Added tooltip hints and accessibility attributes (`aria-keyshortcuts`) communicating the shortcut to users.
 
-## v0.12.0 (2026-09-28)
+## v45-0.12.0 (2026-10-03)
 
 - **Bulk Actions in Notes Center**:
   - Added multi-select capabilities with individual card checkboxes and "Select all" / "Deselect all" controls.
@@ -41,7 +78,7 @@
   - Added "General notes" option in Notes Center filters and export routines.
 - **UI/UX & Theming**:
   - Dynamically adjusted the floating toggle button's vertical position when Moodle's sticky footer is active (`.hasstickyfooter`), preventing it from overlapping bottom action bars.
-  - Modernized sidebar and note component styles with standard Bootstrap 5 CSS variables (`--bs-body-bg`, `--bs-border-color`, `--bs-tertiary-bg`, etc.) for consistent theming and dark mode support.
+  - Migrated core language strings to reduce plugin footprint (`bulkactions`, `selectall`, `search`).
 - **Performance & Lazy Loading**:
   - Implemented lazy loading for the sidebar: user notes are now fetched via AJAX only when the drawer is first opened, speeding up initial page loads.
   - Added loading indicator state with draft preservation and auto-focus restoration upon fetch completion.
@@ -53,13 +90,8 @@
   - Introduced `util::clean_url()` to strictly sanitize and validate note URLs, blocking dangerous URI schemes (e.g. `javascript:`, `data:`).
   - Improved handling for complex URLs with multiple hash fragments (common in interactive modules and SPAs).
   - Applied URL sanitization across note saving (`save_note`), PDF/Markdown exports (`exporter`), and Notes Center rendering.
-- **Moodle 5.x Modernization & Code Cleanup**:
-  - Removed legacy callback `local_quicknote_before_standard_top_of_body_html` in favor of the Moodle 4.4+ / 5.x Hooks API (`before_standard_top_of_body_html_generation`).
-  - Removed deprecated `\core\event\course_updated` observer and simplified form hooks to use direct `$hook->mform` property access.
-  - Replaced legacy Bootstrap 4 accessibility class `sr-only` with Bootstrap 5 `visually-hidden`.
-  - Updated theme styles to use native `--bs-primary` CSS variables, removing obsolete Bootstrap 4 fallbacks.
 
-## 0.11.0 (2026-09-12)
+## m45-0.11.0 (2026-09-12)
 *Screenshot functionality co-authored and ported with contributions by Andreas Giesen (@108design).*
 
 - **Screenshots & Lightbox Gallery**:
@@ -70,11 +102,8 @@
   - Added administrative settings to enable/disable screenshot attachments globally, configure maximum allowed upload size (`max_bytes`), and limit maximum screenshots per note (`max_files_per_note`).
   - Added the `local/quicknote:uploadscreenshot` capability (`CONTEXT_COURSE`) for granular role-based access control.
 - **UI/UX & Accessibility**:
-  - Replaced custom sidebar close button with Bootstrap's native `btn-close` and added padding (`p-2`) to expand the touch and click target area for improved WCAG accessibility.
   - Added a search icon inside the sidebar search input that dynamically toggles with the clear search button when typing.
-  - Simplified search button markup in the Notes Center (`view.mustache`), removing the legacy `input-group-append` wrapper and converting it to a concise icon-only button.
-- **Style & Modernization**:
-  - Replaced deprecated Bootstrap 4 utility classes in the Notes Center template (`view.mustache`) with standard Bootstrap 5 classes (`form-select`, `fw-bold`, `text-end`, `me-*`, `border-start`, `ps-*`, `fst-italic`).
+  - Simplified search button markup in the Notes Center (`view.mustache`), converting it to a concise icon-only button.
 
 ## 0.10.0 (2026-08-30)
 *Major contributions and features in this release were ported from a downstream fork by Andreas Giesen (@108design).*

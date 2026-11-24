@@ -39,17 +39,59 @@ class observers {
         global $DB;
         $courseid = $event->objectid;
 
-        // Delete screenshots before deleting notes.
-        \local_quicknote\local\screenshot_manager::delete_for_select(
-            'courseid = :courseid',
-            ['courseid' => $courseid]
-        );
+        $preserve = get_config('local_quicknote', 'preserve_on_course_delete');
 
-        // Remove any notes still attached to this course (covers non-enrolled authors).
-        $DB->delete_records('local_quicknote_notes', ['courseid' => $courseid]);
+        if ($preserve) {
+            // Preserve notes by migrating them to General Notes (SITEID) and clearing broken links.
+            $notes = $DB->get_records('local_quicknote_notes', ['courseid' => $courseid]);
+            if ($notes) {
+                $coursename = $event->other['fullname'] ?? '';
+                foreach ($notes as $note) {
+                    $updatenote = new \stdClass();
+                    $updatenote->id = $note->id;
+                    $updatenote->courseid = SITEID;
+                    $updatenote->url = '';
+                    $updatenote->quoteurl = '';
+                    $updatenote->pagehash = '';
+
+                    if (!empty($coursename)) {
+                        $prefix = '[' . $coursename . '] ';
+                        if (empty($note->pagetitle)) {
+                            $updatenote->pagetitle = '[' . $coursename . ']';
+                        } else if (strpos($note->pagetitle, $prefix) !== 0) {
+                            $updatenote->pagetitle = \core_text::substr($prefix . $note->pagetitle, 0, 255);
+                        }
+                    }
+
+                    $DB->update_record('local_quicknote_notes', $updatenote);
+                }
+            }
+        } else {
+            // Delete screenshots before deleting notes.
+            \local_quicknote\local\screenshot_manager::delete_for_select(
+                'courseid = :courseid',
+                ['courseid' => $courseid]
+            );
+
+            // Remove any notes still attached to this course (covers non-enrolled authors).
+            $DB->delete_records('local_quicknote_notes', ['courseid' => $courseid]);
+        }
 
         // Remove the per-course configuration.
         $DB->delete_records('local_quicknote_course', ['courseid' => $courseid]);
+        \local_quicknote\local\course_settings::purge_course_cache($courseid);
+    }
+
+    /**
+     * Remove per-activity overrides when a course module is deleted.
+     *
+     * @param \core\event\course_module_deleted $event The event triggered.
+     */
+    public static function course_module_deleted(\core\event\course_module_deleted $event) {
+        \local_quicknote\local\course_settings::delete_module_setting(
+            (int) $event->courseid,
+            (int) $event->objectid
+        );
     }
 
     /**
@@ -67,6 +109,19 @@ class observers {
         }
         if ($lastenrol === null && is_enrolled(\context_course::instance($event->courseid), $event->relateduserid)) {
             return;
+        }
+
+        $preserve = get_config('local_quicknote', 'preserve_on_unenrol');
+        if ($preserve) {
+            return;
+        }
+
+        $preservecourse = get_config('local_quicknote', 'preserve_on_course_delete');
+        if ($preservecourse) {
+            $deletioninprogress = (int) $DB->get_field('course', 'deletioninprogress', ['id' => $event->courseid]);
+            if ($deletioninprogress === 1) {
+                return;
+            }
         }
 
         $userid = $event->relateduserid;
